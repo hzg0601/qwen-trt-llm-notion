@@ -1,3 +1,11 @@
+"""1. 实测，不支持--use_gpt_attention_plugin bfloat16, --use_gemm_plugin bfloat16
+   似乎这一选项是通知builder 输入模型ckpt的数据格式，而非转换为bfloat16,同hf_qwen_convert
+   2. 实测，不能添加enable_debug_output,它会mark intermediate nodes' outputs，把embd节点标记到网络中
+   从而使得generation中expected tensor和found tensor不一致
+   3. 不能使用paged_kv_cache,use_inflight_batching,会导致OOM，
+      猜测paged_kv_cache会额外存储kv值？
+        inflight_batching？
+"""
 import argparse
 import os
 import time
@@ -52,6 +60,8 @@ def trt_dtype_to_onnx(dtype):
         return TensorProto.DataType.FLOAT
     elif dtype == trt.int32:
         return TensorProto.DataType.INT32
+    elif dtype == trt.int64: #! 测试qwen-14b-chat-int4有这种数据格式
+        return TensorProto.DataType.INT64 #! 改
     else:
         raise TypeError("%s is not supported" % dtype)
 
@@ -134,7 +144,7 @@ def parse_arguments():
     parser.add_argument(
         "--hf_model_dir",
         type=str,
-        default=default_config.hf_model_dir,
+        default=None # default_config.hf_model_dir,
     )
     parser.add_argument(
         "--quant_ckpt_path",
@@ -557,7 +567,7 @@ def build_rank_engine(
 
     if args.per_group:
         assert args.weight_only_precision == "int4_gptq"
-
+        # 仅支持单一文件读取
         load_from_gptq_qwen(
             tensorrt_llm_qwen=tensorrt_llm_qwen,
             quant_ckpt_path=args.quant_ckpt_path,

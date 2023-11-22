@@ -1,6 +1,7 @@
 '''
 Convert huggingface QWen-7B-Chat model to numpy file.
 Use https://huggingface.co/Qwen/Qwen-7B-Chat as demo.
+注意不要使用storage-type bfloat16,因为numpy不支持这种数据格式
 '''
 import argparse
 import configparser
